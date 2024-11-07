@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from app.backend.db_depends import get_db
 # Аннотации, Модели БД и Pydantic.
 from typing import Annotated
-from app.models import User
+from app.models.user import User
+from app.models.task import Task
 from app.schemas import CreateUser, UpdateUser
 # Функции работы с записями.
 from sqlalchemy import insert, select, update, delete
@@ -76,10 +77,24 @@ async def delete_user(db: Annotated[Session, Depends(get_db)], user_id: int):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User was not found"
         )
+    tasks = db.query(Task).filter(Task.user_id == user_id).all()
+    for task in tasks:
+        db.delete(task)
+
     db.execute(delete(User).where(User.id == user_id))
     db.commit()
     return {
         'status_code': status.HTTP_200_OK,
         'transaction': 'User deleted is successful!'
     }
+
+@router.get("/{user_id}/tasks")
+def tasks_by_user_id(db: Annotated[Session, Depends(get_db)], user_id: int):
+    user = db.scalar(select(User).where(User.id == user_id))
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    tasks = db.query(Task).filter(Task.user_id == user_id).all()
+    return tasks
+
 
